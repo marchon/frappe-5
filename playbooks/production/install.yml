@@ -1,5 +1,5 @@
 ---
-  - hosts: localhost
+ # - hosts: localhost
 
   # Install the common pre-requisites for the setting up bench
   - include: ../develop/install.yml
