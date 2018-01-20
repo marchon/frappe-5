@@ -1,0 +1,100 @@
+---
+- hosts: localhost
+  vars:
+    bench_repo_path: "/home/{{ ansible_user_id }}/.bench"
+    bench_path: "/home/{{ ansible_user_id }}/frappe-bench"
+    mysql_config_template: "templates/simple_mariadb_config.cnf"
+    mysql_conf_dir: /etc/mysql/conf.d/
+    wkhtmltopdf_version: 0.12.2.1
+
+  tasks:
+
+  # install pre-requisites
+  - name: install prequisites
+    apt: pkg={{ item }} state=present
+    with_items:
+      # basic installs
+      - build-essential
+      - redis-server
+
+      # for mariadb
+      - software-properties-common
+
+      # for wkhtmltopdf
+      - libxrender1
+      - libxext6
+      - xfonts-75dpi
+      - xfonts-base
+
+      # for Pillow
+      - libjpeg8-dev
+      - zlib1g-dev
+      - libfreetype6-dev
+      - liblcms2-dev
+      - libwebp-dev
+      - python-tk
+
+    become: yes
+    become_user: root
+
+  - name: install pillow prerequisites for Ubuntu < 14.04
+    apt: pkg={{ item }} state=present
+    with_items:
+      - libtiff4-dev
+      - tcl8.5-dev
+      - tk8.5-dev
+    when: ansible_distribution_version | version_compare('14.04', 'lt')
+    become: yes
+    become_user: root
+
+  - name: install pillow prerequisites for Ubuntu >= 14.04
+    apt: pkg={{ item }} state=present
+    with_items:
+      - libtiff5-dev
+      - tcl8.6-dev
+      - tk8.6-dev
+    when: ansible_distribution_version >= 14.04
+    become: yes
+    become_user: root
+
+  - name: Get nodejs 6.x bash script
+    get_url:
+      url: 'https://deb.nodesource.com/setup_6.x'
+      dest: '/tmp/setup_6.x'
+      mode: 0644
+    become: yes
+    become_user: root
+
+  - name: Run nodejs bash script
+    command: /bin/bash /tmp/setup_6.x
+    become: yes
+    become_user: root
+
+  - name: Install nodejs 6.x
+    apt:
+      name: nodejs
+      state: present
+      update_cache: yes
+      force: yes
+    become: yes
+    become_user: root
+
+  # install MariaDB
+  - include: includes/mariadb_ubuntu.yml
+
+  # install WKHTMLtoPDF
+  - include: includes/wkhtmltopdf_ubuntu_debian.yml
+
+  # setup MariaDB
+  - include: includes/setup_mariadb.yml
+
+  - debug:
+      var: run_travis
+
+  # setup frappe-bench
+  - include: includes/setup_bench.yml
+    when: not without_bench_setup and not run_travis
+
+  # setup development environment
+  - include: includes/setup_dev_env.yml
+    when: not production and not run_travis and not without_bench_setup
